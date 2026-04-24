@@ -1,0 +1,117 @@
+#include <Arduino.h>
+
+// Pins
+#define BUTTON_PIN 4
+#define BUZZER 5
+
+// Geo-fence (school area)
+float schoolLat = 12.970972;
+float schoolLng = 79.164083;
+float radius = 0.001;
+
+// Simulated GPS
+float currentLat = 12.970972;
+float currentLng = 79.164083;
+
+unsigned long lastAlertTime = 0;
+
+// Button state
+bool lastButtonState = HIGH;
+
+// Buzzer
+void triggerBuzzer() {
+  digitalWrite(BUZZER, HIGH);
+  delay(1000);
+  digitalWrite(BUZZER, LOW);
+}
+
+// Simulated SMS
+void sendSMS(String message) {
+  Serial.println("SMS SENT:");
+  Serial.println(message);
+  Serial.println("----------------------");
+}
+
+// Alert
+void sendAlert() {
+  String msg = "ALERT! Child left safe zone\n";
+  msg += "https://maps.google.com/?q=";
+  msg += String(currentLat, 6) + "," + String(currentLng, 6);
+
+  sendSMS(msg);
+  triggerBuzzer();
+}
+
+// SOS
+void sendSOS() {
+  String msg = "SOS! Emergency!\n";
+  msg += "https://maps.google.com/?q=";
+  msg += String(currentLat, 6) + "," + String(currentLng, 6);
+
+  sendSMS(msg);
+  triggerBuzzer();
+}
+
+// Button handling
+void handleButton() {
+  bool currentState = digitalRead(BUTTON_PIN);
+
+  if (lastButtonState == HIGH && currentState == LOW) {
+    Serial.println("SOS BUTTON PRESSED");
+    sendSOS();
+    delay(300);
+  }
+
+  lastButtonState = currentState;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUZZER, OUTPUT);
+
+  Serial.println("SMART CHILD SAFETY SYSTEM STARTED");
+}
+
+void loop() {
+
+  handleButton();
+
+  // ---------- TEST CASE 1: NORMAL ----------
+  // Keep these values → child inside safe zone
+  currentLat = 12.970972;
+  currentLng = 79.164083;
+
+  // ---------- TEST CASE 2: GEOFENCE VIOLATION ----------
+  // Uncomment below lines to simulate child outside safe zone
+  /*
+  currentLat = 12.975000;
+  currentLng = 79.170000;
+  */
+
+  // ---------- TEST CASE 3: SOS ----------
+  // Click the push button in simulation to trigger SOS
+
+  int hour = 10;
+  bool schoolTime = (hour >= 8 && hour < 14);
+
+  float distance = sqrt(
+    pow(currentLat - schoolLat, 2) +
+    pow(currentLng - schoolLng, 2)
+  );
+
+  bool outside = (distance > radius);
+
+  if (schoolTime && outside) {
+    if (millis() - lastAlertTime > 5000) {
+      Serial.println("GEOFENCE VIOLATION");
+      sendAlert();
+      lastAlertTime = millis();
+    }
+  } else {
+    Serial.println("Child is inside safe zone");
+  }
+
+  Serial.println("---------------------------");
+  delay(2000);
+}
